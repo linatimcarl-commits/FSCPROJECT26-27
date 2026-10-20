@@ -217,6 +217,57 @@ button.purple{
     padding:0 20px 20px 20px;
 }
 
+
+
+/* COLLAPSIBLE FCPC MONTHS */
+.fcpc-month-accordion{
+    display:grid;
+    gap:10px;
+}
+.fcpc-month-card{
+    border:1px solid #e1e5e9;
+    border-radius:10px;
+    overflow:hidden;
+    background:#fff;
+}
+.fcpc-month-card summary{
+    cursor:pointer;
+    list-style:none;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:14px 16px;
+    background:#f7f8fa;
+    font-weight:800;
+}
+.fcpc-month-card summary::-webkit-details-marker{display:none;}
+.fcpc-month-card summary::after{
+    content:"＋";
+    color:#d71920;
+    font-size:20px;
+}
+.fcpc-month-card[open] summary::after{content:"−";}
+.fcpc-month-card[open] summary{
+    background:#fff1f1;
+    border-bottom:1px solid #f0d4d4;
+}
+.fcpc-month-preview{
+    color:#666;
+    font-size:12px;
+    font-weight:600;
+}
+.fcpc-month-table-wrap{
+    padding:10px 14px 14px;
+    overflow-x:auto;
+}
+.fcpc-month-table-wrap table{min-width:650px;}
+@media print{
+    .fcpc-month-card{break-inside:avoid;}
+    .fcpc-month-card:not([open]) .fcpc-month-table-wrap{display:block!important;}
+    .fcpc-month-card summary::after{display:none;}
+}
+
 /* TABLE */
 
 .table-wrapper{
@@ -248,13 +299,38 @@ td select{
     width:100%;
 }
 
+/* Variance Monitoring: white text for readability on dark input fields */
+#varianceBody input,
+#varianceBody select{
+    color:#ffffff !important;
+    -webkit-text-fill-color:#ffffff !important;
+    caret-color:#ffffff;
+}
+
+#varianceBody input::placeholder{
+    color:#eeeeee !important;
+    opacity:1;
+}
+
 .editable-input{
     background:#fffdf0;
+    color:#000 !important;
+    -webkit-text-fill-color:#000 !important;
     border:2px solid #e4c84a;
     font-weight:700;
+    caret-color:#000;
+}
+
+/* Keep all editable numeric values clearly visible in black */
+input[type="number"]{
+    color:#000 !important;
+    -webkit-text-fill-color:#000 !important;
+    caret-color:#000;
 }
 
 .editable-input:focus{
+    color:#000 !important;
+    -webkit-text-fill-color:#000 !important;
     border-color:#d71920;
 }
 
@@ -884,37 +960,7 @@ textarea{
         </div>
 
 
-        <div class="table-wrapper">
-
-            <table>
-
-                <thead>
-
-                    <tr>
-
-                        <th>Month</th>
-
-                        <th>Target FCPC</th>
-
-                        <th>Actual FCPC</th>
-
-                        <th>Variance</th>
-
-                        <th>Variance %</th>
-
-                        <th>Status</th>
-
-                    </tr>
-
-                </thead>
-
-                <tbody
-                    id="fcpcTableBody"
-                ></tbody>
-
-            </table>
-
-        </div>
+        <div id="fcpcMonthAccordion" class="fcpc-month-accordion"></div>
 
     </div>
 
@@ -2049,167 +2095,62 @@ function updateKPIs(){
 
 function renderFCPC(){
 
-    const body =
-        document.getElementById(
-            "fcpcTableBody"
-        );
+    const container = document.getElementById("fcpcMonthAccordion");
+    if(!container) return;
 
+    // Preserve expanded month panels when the dashboard refreshes after editing.
+    const previouslyOpenMonths = new Set(
+        Array.from(container.querySelectorAll(".fcpc-month-card[open]"))
+            .map(card => card.dataset.month)
+    );
 
-    body.innerHTML = "";
+    container.innerHTML = "";
 
+    const selectedMonth = getSelectedMonth();
+    const rows = selectedMonth === "ALL"
+        ? fcpcData
+        : fcpcData.filter(row => row.month === selectedMonth);
 
-    const selectedMonth =
-        getSelectedMonth();
-
-
-    let rows =
-        fcpcData;
-
-
-    if(
-        selectedMonth !== "ALL"
-    ){
-
-        rows =
-            fcpcData.filter(
-                x =>
-                    x.month ===
-                    selectedMonth
-            );
-
+    if(!rows.length){
+        container.innerHTML = '<div class="empty">No FCPC data for this month.</div>';
+        return;
     }
-
 
     rows.forEach(row => {
+        const index = fcpcData.findIndex(x => x.month === row.month);
+        const target = Number(row.target || 0);
+        const actual = Number(row.actual || 0);
+        const variance = actual - target;
+        const variancePercent = target === 0 ? 0 : (variance / target) * 100;
+        const status = target === 0 ? "—" : (variance <= 0 ? "GOOD" : "ABOVE TARGET");
+        const statusClass = target === 0 ? "neutral" : (variance <= 0 ? "positive" : "negative");
 
-        const index =
-            fcpcData.findIndex(
-                x =>
-                    x.month ===
-                    row.month
-            );
-
-
-        const variance =
-            Number(row.actual || 0) -
-            Number(row.target || 0);
-
-
-        const variancePercent =
-            Number(row.target || 0) === 0
-            ? 0
-            :
-            (
-                variance /
-                Number(row.target)
-            ) * 100;
-
-
-        let status =
-            "—";
-
-
-        if(
-            Number(row.target || 0) !== 0
-        ){
-
-            status =
-                variance <= 0
-                ? "GOOD"
-                : "ABOVE TARGET";
-
-        }
-
-
-        const tr =
-            document.createElement(
-                "tr"
-            );
-
-
-        tr.innerHTML = `
-
-            <td>
-                <strong>
-                    ${row.month}
-                </strong>
-            </td>
-
-            <td>
-
-                <input
-                    class="editable-input"
-                    type="number"
-                    min="0"
-                    step="0.0001"
-                    value="${Number(row.target || 0)}"
-                    title="Enter decimal FCPC target"
-                    oninput="updateFCPC(${index},'target',this.value)"
-                >
-
-            </td>
-
-            <td>
-
-                <input
-                    class="editable-input"
-                    type="number"
-                    min="0"
-                    step="0.0001"
-                    value="${Number(row.actual || 0)}"
-                    title="Enter decimal FCPC actual"
-                    oninput="updateFCPC(${index},'actual',this.value)"
-                >
-
-            </td>
-
-            <td
-                class="${variance <= 0 ? "positive":"negative"}"
-            >
-                ${decimal(variance)}
-            </td>
-
-            <td
-                class="${variance <= 0 ? "positive":"negative"}"
-            >
-                ${percentage(variancePercent)}%
-            </td>
-
-            <td
-                class="${variance <= 0 ? "positive":"negative"}"
-            >
-                ${status}
-            </td>
-
+        const details = document.createElement("details");
+        details.className = "fcpc-month-card";
+        details.dataset.month = row.month;
+        // Selected month opens automatically; in ALL MONTHS view keep any
+        // month the user opened expanded after entering or updating numbers.
+        details.open = selectedMonth !== "ALL" || previouslyOpenMonths.has(row.month);
+        details.innerHTML = `
+            <summary>
+                <span>${row.month}</span>
+                <span class="fcpc-month-preview">Target: ${decimal(target)} · Actual: ${decimal(actual)} · ${status}</span>
+            </summary>
+            <div class="fcpc-month-table-wrap">
+                <table>
+                    <thead><tr><th>Target FCPC</th><th>Actual FCPC</th><th>Variance</th><th>Variance %</th><th>Status</th></tr></thead>
+                    <tbody><tr>
+                        <td><input class="editable-input" type="number" min="0" step="0.0001" value="${target}" inputmode="decimal" title="Enter decimal FCPC target" onchange="updateFCPC(${index},'target',this.value)"></td>
+                        <td><input class="editable-input" type="number" min="0" step="0.0001" value="${actual}" inputmode="decimal" title="Enter decimal FCPC actual" onchange="updateFCPC(${index},'actual',this.value)"></td>
+                        <td class="${variance <= 0 ? "positive":"negative"}">${decimal(variance)}</td>
+                        <td class="${variance <= 0 ? "positive":"negative"}">${percentage(variancePercent)}%</td>
+                        <td class="${statusClass}">${status}</td>
+                    </tr></tbody>
+                </table>
+            </div>
         `;
-
-
-        body.appendChild(tr);
-
+        container.appendChild(details);
     });
-
-
-    if(
-        rows.length === 0
-    ){
-
-        body.innerHTML = `
-
-            <tr>
-
-                <td
-                    colspan="6"
-                    class="empty"
-                >
-                    No FCPC data for this month.
-                </td>
-
-            </tr>
-
-        `;
-
-    }
-
 }
 
 
